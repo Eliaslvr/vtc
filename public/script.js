@@ -1,4 +1,6 @@
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+import mapboxgl from 'mapbox-gl';
+
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 // Configuration des tarifs
 const RATES = {

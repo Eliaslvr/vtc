@@ -1,7 +1,7 @@
 // ========================================
 // CONFIGURATION API BACKEND
 // ========================================
-const API_URL = 'http://localhost:3000/api'; // Changez en production
+const API_URL = 'https://vtc-fn63.onrender.com'; // Changez en production
 
 // ========================================
 // CONFIGURATION MAPBOX ET TARIFS

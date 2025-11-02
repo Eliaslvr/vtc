@@ -17,21 +17,24 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Configuration du transporteur email
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // ou 'hotmail', 'outlook', etc.
-  auth: {
-    user: process.env.EMAIL_USER, // votre email
-    pass: process.env.EMAIL_PASS  // mot de passe d'application Gmail
-  }
-});
-
-// Vérification de la connexion email au démarrage
-transporter.verify((error, success) => {
-  if (error) {
-    console.log('❌ Erreur de configuration email:', error);
-  } else {
-    console.log('✅ Serveur email prêt');
-  }
-});
+    host: 'smtp.sendgrid.net',
+    port: 587,
+    secure: false, // true pour port 465
+    auth: {
+      user: process.env.SENDGRID_USER, // "apikey"
+      pass: process.env.SENDGRID_PASS  // clé API SendGrid
+    }
+  });
+  
+  // Vérification de la connexion
+  transporter.verify((error, success) => {
+    if (error) {
+      console.log('❌ Erreur de configuration email:', error);
+    } else {
+      console.log('✅ Serveur email prêt via SendGrid');
+    }
+  });
+  
 
 // Route pour recevoir les réservations
 app.post('/api/reservations', async (req, res) => {

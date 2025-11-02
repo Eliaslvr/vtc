@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Test de connexion au serveur
 async function testServerConnection() {
     try {
-        const response = await fetch(`${API_URL}/health`);
+        const response = await fetch(`${API_URL}/api/health`);
         const data = await response.json();
         console.log('✅ Serveur backend connecté:', data);
         return true;
@@ -66,7 +66,7 @@ async function testServerConnection() {
 // Fonction pour envoyer la réservation au backend
 async function envoyerReservation(reservationData) {
     try {
-        const response = await fetch(`${API_URL}/reservations`, {
+        const response = await fetch(`${API_URL}/api/reservations`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

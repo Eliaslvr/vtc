@@ -17,12 +17,13 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Configuration du transporteur email
 const transporter = nodemailer.createTransport({
-    host: 'smtp.sendgrid.net',
-    port: 587,
-    secure: false, // true pour port 465
+    // host: 'smtp.sendgrid.net',
+    // port: 587,
+    // secure: false, // true pour port 465
+    service: "gmail",
     auth: {
-      user: process.env.SENDGRID_USER, // "apikey"
-      pass: process.env.SENDGRID_PASS  // clé API SendGrid
+      user: process.env.EMAIL_USER, // "apikey"
+      pass: process.env.EMAIL_PASS  // clé API SendGrid
     }
   });
   

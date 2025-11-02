@@ -1,10 +1,10 @@
 // server.js
-// Installation: npm install express nodemailer cors body-parser dotenv
+// Installation: npm install express @sendgrid/mail cors body-parser dotenv
 
 const express = require('express');
-const nodemailer = require('nodemailer');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const sgMail = require('@sendgrid/mail');
 require('dotenv').config();
 
 const app = express();
@@ -15,71 +15,52 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Configuration du transporteur email
-const transporter = nodemailer.createTransport({
-    // host: 'smtp.sendgrid.net',
-    // port: 587,
-    // secure: false, // true pour port 465
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER, // "apikey"
-      pass: process.env.EMAIL_PASS  // clé API SendGrid
-    }
-  });
-  
-  // Vérification de la connexion
-  transporter.verify((error, success) => {
-    if (error) {
-      console.log('❌ Erreur de configuration email:', error);
-    } else {
-      console.log('✅ Serveur email prêt via SendGrid');
-    }
-  });
-  
+// Configuration SendGrid
+sgMail.setApiKey(process.env.SENDGRID_PASS);
+
+// Vérification de la configuration
+(async () => {
+  try {
+    await sgMail.send({
+      to: process.env.VTC_EMAIL,
+      from: process.env.EMAIL_USER,
+      subject: "🔧 Test configuration SendGrid",
+      text: "Test de configuration du serveur email SendGrid."
+    });
+    console.log('✅ Serveur email prêt via SendGrid');
+  } catch (err) {
+    console.error('❌ Erreur de configuration email:', err.message || err);
+  }
+})();
 
 // Route pour recevoir les réservations
 app.post('/api/reservations', async (req, res) => {
   try {
     const reservation = req.body;
-    
-    // Validation des données
+
     if (!reservation.name || !reservation.phone || !reservation.pickup || !reservation.destination) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Données manquantes' 
-      });
+      return res.status(400).json({ success: false, message: 'Données manquantes' });
     }
 
     // Envoi de l'email au VTC
     await envoyerNotificationVTC(reservation);
-    
-    // Optionnel : Envoi d'un email de confirmation au client
+
+    // Envoi de l'email de confirmation au client si email fourni
     if (reservation.email) {
       await envoyerConfirmationClient(reservation);
     }
 
-    // Ici vous pouvez aussi sauvegarder la réservation dans une base de données
-    // await saveToDatabase(reservation);
-
-    res.json({ 
-      success: true, 
-      message: 'Réservation enregistrée avec succès',
-      reservationId: Date.now() // ID temporaire
-    });
-
+    res.json({ success: true, message: 'Réservation enregistrée avec succès', reservationId: Date.now() });
   } catch (error) {
     console.error('❌ Erreur lors de la réservation:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Erreur serveur. Veuillez réessayer.' 
-    });
+    res.status(500).json({ success: false, message: 'Erreur serveur. Veuillez réessayer.' });
   }
 });
 
 // Fonction pour envoyer la notification au VTC
 async function envoyerNotificationVTC(reservation) {
-  const emailVTC = process.env.VTC_EMAIL || 'votre-email-vtc@gmail.com';
-  
+  const emailVTC = process.env.VTC_EMAIL;
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -88,7 +69,6 @@ async function envoyerNotificationVTC(reservation) {
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center; border-radius: 10px 10px 0 0; }
-        .header h1 { margin: 0; font-size: 28px; }
         .content { background-color: #f9f9f9; padding: 30px 20px; border-radius: 0 0 10px 10px; }
         .alert-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
         .info-row { margin: 15px 0; padding: 15px; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -97,7 +77,6 @@ async function envoyerNotificationVTC(reservation) {
         .price-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0; }
         .price-box .amount { font-size: 36px; font-weight: bold; margin: 10px 0; }
         .footer { margin-top: 30px; padding: 20px; text-align: center; color: #777; font-size: 12px; border-top: 1px solid #ddd; }
-        .urgent { color: #dc3545; font-weight: bold; }
       </style>
     </head>
     <body>
@@ -124,61 +103,18 @@ async function envoyerNotificationVTC(reservation) {
             <span class="value"><strong>${reservation.phone}</strong></span>
           </div>
           
-          ${reservation.email ? `
-          <div class="info-row">
-            <span class="label">✉️ Email :</span>
-            <span class="value">${reservation.email}</span>
-          </div>
-          ` : ''}
+          ${reservation.email ? `<div class="info-row"><span class="label">✉️ Email :</span><span class="value">${reservation.email}</span></div>` : ''}
 
           <h2 style="color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; margin-top: 30px;">🗓️ Détails de la Course</h2>
-          
-          <div class="info-row">
-            <span class="label">📅 Date :</span>
-            <span class="value"><strong>${reservation.date}</strong></span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">🕐 Heure :</span>
-            <span class="value"><strong>${reservation.time}</strong></span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">📍 Départ :</span>
-            <span class="value">${reservation.pickup}</span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">🎯 Destination :</span>
-            <span class="value">${reservation.destination}</span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">📏 Distance :</span>
-            <span class="value">${reservation.distance}</span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">⏱️ Durée estimée :</span>
-            <span class="value">${reservation.duration}</span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">🚗 Type de service :</span>
-            <span class="value">${getServiceName(reservation.serviceType)}</span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">👥 Passagers :</span>
-            <span class="value">${reservation.passengers}</span>
-          </div>
-          
-          ${reservation.notes ? `
-          <div class="info-row">
-            <span class="label">📝 Notes :</span>
-            <span class="value">${reservation.notes}</span>
-          </div>
-          ` : ''}
+          <div class="info-row"><span class="label">📅 Date :</span><span class="value"><strong>${reservation.date}</strong></span></div>
+          <div class="info-row"><span class="label">🕐 Heure :</span><span class="value"><strong>${reservation.time}</strong></span></div>
+          <div class="info-row"><span class="label">📍 Départ :</span><span class="value">${reservation.pickup}</span></div>
+          <div class="info-row"><span class="label">🎯 Destination :</span><span class="value">${reservation.destination}</span></div>
+          <div class="info-row"><span class="label">📏 Distance :</span><span class="value">${reservation.distance}</span></div>
+          <div class="info-row"><span class="label">⏱️ Durée estimée :</span><span class="value">${reservation.duration}</span></div>
+          <div class="info-row"><span class="label">🚗 Type de service :</span><span class="value">${getServiceName(reservation.serviceType)}</span></div>
+          <div class="info-row"><span class="label">👥 Passagers :</span><span class="value">${reservation.passengers}</span></div>
+          ${reservation.notes ? `<div class="info-row"><span class="label">📝 Notes :</span><span class="value">${reservation.notes}</span></div>` : ''}
 
           <div class="price-box">
             <div>Prix estimé de la course</div>
@@ -200,15 +136,14 @@ async function envoyerNotificationVTC(reservation) {
     </html>
   `;
 
-  const mailOptions = {
-    from: `"VTC Premium Réservations" <${process.env.EMAIL_USER}>`,
+  const msg = {
     to: emailVTC,
+    from: process.env.EMAIL_USER,
     subject: `🚗 NOUVELLE RÉSERVATION - ${reservation.name} - ${reservation.date} ${reservation.time}`,
     html: htmlContent,
-    priority: 'high' // Email prioritaire
   };
 
-  await transporter.sendMail(mailOptions);
+  await sgMail.send(msg);
   console.log('✅ Email envoyé au VTC');
 }
 
@@ -253,23 +188,23 @@ async function envoyerConfirmationClient(reservation) {
     </html>
   `;
 
-  const mailOptions = {
-    from: `"VTC Premium" <${process.env.EMAIL_USER}>`,
+  const msg = {
     to: reservation.email,
+    from: process.env.EMAIL_USER,
     subject: `✅ Confirmation de votre réservation VTC - ${reservation.date}`,
-    html: htmlContent
+    html: htmlContent,
   };
 
-  await transporter.sendMail(mailOptions);
+  await sgMail.send(msg);
   console.log('✅ Email de confirmation envoyé au client');
 }
 
 // Fonction utilitaire pour obtenir le nom du service
 function getServiceName(serviceType) {
   const services = {
-    'standard': 'Standard (1.50€/km)',
-    'premium': 'Premium (2.00€/km)',
-    'business': 'Business (2.50€/km)'
+    standard: 'Standard (1.50€/km)',
+    premium: 'Premium (2.00€/km)',
+    business: 'Business (2.50€/km)',
   };
   return services[serviceType] || serviceType;
 }
@@ -282,5 +217,5 @@ app.get('/api/health', (req, res) => {
 // Démarrage du serveur
 app.listen(PORT, () => {
   console.log(`🚀 Serveur démarré sur le port ${PORT}`);
-  console.log(`📧 Email configuré: ${process.env.EMAIL_USER}`);
+  console.log(`📧 Emails envoyés via: ${process.env.EMAIL_USER}`);
 });

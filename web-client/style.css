@@ -1,3 +1,23 @@
+/* Variables CSS pour faciliter la maintenance */
+:root {
+    --primary-color: #667eea;
+    --secondary-color: #764ba2;
+    --success-color: #28a745;
+    --error-color: #f8d7da;
+    --error-text: #721c24;
+    --text-color: #333;
+    --text-light: #555;
+    --bg-white: #ffffff;
+    --bg-light: #f9f9f9;
+    --bg-dark: #000000;
+    --border-color: #e0e0e0;
+    --shadow: 0 5px 20px rgba(0,0,0,0.1);
+    --shadow-lg: 0 10px 40px rgba(0,0,0,0.2);
+    --border-radius: 10px;
+    --border-radius-lg: 15px;
+    --transition: 0.3s ease;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -6,9 +26,9 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--bg-white);
     min-height: 100vh;
-    color: #333;
+    color: var(--text-color);
 }
 
 header {
@@ -31,26 +51,45 @@ nav {
 .logo {
     font-size: 1.5rem;
     font-weight: bold;
-    color: #667eea;
+    color: var(--text-light);
     text-decoration: none;
 }
 
 .nav-links a {
     margin-left: 2rem;
     text-decoration: none;
-    color: #333;
+    color: var(--text-color);
     font-weight: 500;
-    transition: color 0.3s;
+    transition: color var(--transition);
 }
 
 .nav-links a:hover {
-    color: #667eea;
+    color: var(--primary-color);
 }
 
 .container {
     max-width: 1200px;
+    width: 100%;
     margin: 0 auto;
     padding: 2rem;
+}
+
+@media (min-width: 768px) {
+    .container {
+        width: 90%;
+    }
+}
+
+@media (min-width: 1024px) {
+    .container {
+        width: 80%;
+    }
+}
+
+@media (min-width: 1400px) {
+    .container {
+        width: 70%;
+    }
 }
 
 .hero {
@@ -61,6 +100,7 @@ nav {
 
 .hero h1 {
     font-size: 3rem;
+    color: var(--text-light);
     margin-bottom: 1rem;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
 }
@@ -71,10 +111,10 @@ nav {
 }
 
 .booking-section {
-    background: white;
-    border-radius: 20px;
+    background: var(--bg-dark);
+    border-radius: var(--border-radius-lg);
     padding: 3rem;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    box-shadow: var(--shadow-lg);
     margin: 2rem 0;
 }
 
@@ -84,7 +124,7 @@ nav {
 
 .simulator-title {
     text-align: center;
-    color: #667eea;
+    color: white;
     margin-bottom: 2rem;
     font-size: 2rem;
 }
@@ -97,21 +137,21 @@ label {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 600;
-    color: #555;
+    color: var(--bg-white);
 }
 
 input, select, textarea {
     width: 100%;
     padding: 0.8rem;
-    border: 2px solid #e0e0e0;
-    border-radius: 10px;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
     font-size: 1rem;
-    transition: border-color 0.3s;
+    transition: border-color var(--transition);
 }
 
 input:focus, select:focus, textarea:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: var(--primary-color);
 }
 
 .form-row {
@@ -122,9 +162,8 @@ input:focus, select:focus, textarea:focus {
 
 .button_localisation {
     display: flex;
-    /* width: 350px; */
     width: 70%;
-    background: #28a745;
+    background: var(--success-color);
     justify-content: center;
     margin: 50px auto;
 }
@@ -132,10 +171,10 @@ input:focus, select:focus, textarea:focus {
 button {
     width: 100%;
     padding: 1rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: linear-gradient(135deg, #2d2d2d 0%, #b0a8a8 100%);
+    color: var(--bg-white);
     border: none;
-    border-radius: 10px;
+    border-radius: var(--border-radius);
     font-size: 1.1rem;
     font-weight: bold;
     cursor: pointer;
@@ -154,14 +193,19 @@ button:disabled {
 }
 
 .price-display {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: var(--bg-white);
+    color: var(--text-color);
     padding: 2rem;
-    border-radius: 15px;
+    border-radius: var(--border-radius-lg);
     text-align: center;
     margin: 2rem 0;
     display: none;
 }
+
+.price-display h3, .price-amount {
+    color: var(--text-color);
+}
+
 
 .price-display.show {
     display: block;
@@ -194,9 +238,15 @@ button:disabled {
 }
 
 .price-detail-item {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--bg-dark);
     padding: 1rem;
-    border-radius: 10px;
+    border-radius: var(--border-radius);
+}
+
+.button-confirme {
+    margin-top: 2rem; 
+    background: var(--bg-dark); 
+    color: var(--bg-white);
 }
 
 .confirmation {
@@ -210,15 +260,15 @@ button:disabled {
 }
 
 .confirmation h2 {
-    color: #28a745;
+    color: var(--success-color);
     margin-bottom: 1.5rem;
     font-size: 2rem;
 }
 
 .booking-details {
-    background: #f8f9fa;
+    background: var(--bg-light);
     padding: 2rem;
-    border-radius: 15px;
+    border-radius: var(--border-radius-lg);
     margin: 2rem 0;
     text-align: left;
 }
@@ -234,7 +284,7 @@ button:disabled {
 
 .services h2 {
     text-align: center;
-    color: white;
+    color: var(--bg-white);
     margin-bottom: 2rem;
     font-size: 2rem;
 }
@@ -246,11 +296,11 @@ button:disabled {
 }
 
 .service-card {
-    background: white;
+    background: var(--bg-dark);
     padding: 2rem;
-    border-radius: 15px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-    transition: transform 0.3s;
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow);
+    transition: transform var(--transition);
 }
 
 .service-card:hover {
@@ -258,21 +308,25 @@ button:disabled {
 }
 
 .service-card h3 {
-    color: #667eea;
+    color: var(--bg-white);
     margin-bottom: 1rem;
     font-size: 1.5rem;
 }
 
+.service-card p {
+    color: var(--bg-white);
+}
+
 .contact-info {
-    background: white;
+    background: var(--bg-white);
     padding: 2rem;
-    border-radius: 15px;
+    border-radius: var(--border-radius-lg);
     text-align: center;
     margin: 3rem 0;
 }
 
 .contact-info h2 {
-    color: #667eea;
+    color: var(--bg-dark);
     margin-bottom: 1.5rem;
 }
 
@@ -285,7 +339,7 @@ button:disabled {
     display: none;
     text-align: center;
     padding: 1rem;
-    color: #667eea;
+    color: var(--primary-color);
 }
 
 .loading.show {
@@ -293,10 +347,10 @@ button:disabled {
 }
 
 .error-message {
-    background: #f8d7da;
-    color: #721c24;
+    background: var(--error-color);
+    color: var(--error-text);
     padding: 1rem;
-    border-radius: 10px;
+    border-radius: var(--border-radius);
     margin: 1rem 0;
     display: none;
 }
@@ -305,18 +359,24 @@ button:disabled {
     display: block;
 }
 
+.booking-form h2 {
+    text-align: center; 
+    margin-bottom: 2rem; 
+    color: white;
+}
+
 #map {
     width: 100%;
     height: 400px;
-    border-radius: 15px;
+    border-radius: var(--border-radius-lg);
     margin: 2rem 0;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow);
 }
 
 .route-info {
-    background: #f8f9fa;
+    background: var(--bg-light);
     padding: 1.5rem;
-    border-radius: 10px;
+    border-radius: var(--border-radius);
     margin: 1rem 0;
     display: none;
 }

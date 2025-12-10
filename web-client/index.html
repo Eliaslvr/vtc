@@ -65,9 +65,8 @@
                         <div class="form-group">
                             <label for="serviceType">🚗 Type de service</label>
                             <select id="serviceType" name="serviceType">
-                                <option value="standard">Standard (1.50€/km)</option>
-                                <option value="premium">Premium (2.00€/km)</option>
-                                <option value="business">Business (2.50€/km)</option>
+                                <option value="standard">Citadine</option>
+                                <option value="premium">Van</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -109,12 +108,12 @@
                             <div>5.00€</div>
                         </div>
                     </div>
-                    <button onclick="showBookingForm()" style="margin-top: 2rem; background: white; color: #667eea;">✅ Confirmer et réserver</button>
+                    <button onclick="showBookingForm()" class="button-confirme">✅ Confirmer et réserver</button>
                 </div>
             </div>
 
             <div class="booking-form" id="bookingForm" style="display: none;">
-                <h2 style="text-align: center; margin-bottom: 2rem; color: #333;">📝 Finaliser votre réservation</h2>
+                <h2>📝 Finaliser votre réservation</h2>
                 
                 <div class="price-display show" style="margin-bottom: 2rem;">
                     <div style="font-size: 1.2rem;">Prix total estimé</div>

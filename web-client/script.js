@@ -6,13 +6,15 @@ const API_URL = 'https://vtc-fn63.onrender.com'; // Changez en production
 // ========================================
 // CONFIGURATION MAPBOX ET TARIFS
 // ========================================
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiZWxpYXM1OSIsImEiOiJjbWhleG15MjkwM3p2Mm5xdjRhZGM2M2lxIn0.wggxrYwafkNLgF13EGaqSA';
+// Note: Le token Mapbox est maintenant géré côté serveur via proxy
+// Pour l'initialisation de la carte, on utilise un token public limité (optionnel)
+// ou on peut créer un endpoint qui retourne un token scoped
+const MAPBOX_TOKEN = null; // Sera récupéré via l'API si nécessaire
 
 // Configuration des tarifs
 const RATES = {
-    standard: { perKm: 1.50, label: 'Standard' },
-    premium: { perKm: 2.00, label: 'Premium' },
-    business: { perKm: 2.50, label: 'Business' }
+    standard: { perKm: 2.00, label: 'Standard' },
+    premium: { perKm: 5.00, label: 'Premium' }
 };
 const BASE_FARE = 5.00;
 
@@ -21,16 +23,79 @@ let calculatedPrice = 0;
 let tripData = {};
 let map = null;
 let markers = [];
+let debounceTimer = null;
 
 // ========================================
 // INITIALISATION
 // ========================================
-document.addEventListener('DOMContentLoaded', function() {
+// Fonction debounce pour limiter les appels API
+function debounce(func, wait) {
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(debounceTimer);
+            func(...args);
+        };
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(later, wait);
+    };
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('date').setAttribute('min', today);
     
-    // Initialiser la carte Mapbox
-    mapboxgl.accessToken = MAPBOX_TOKEN;
+    // Initialiser la carte Mapbox (utilise un token public ou récupère via API)
+    try {
+        // Tester la connexion au serveur backend
+        const serverConnected = await testServerConnection();
+        
+        if (serverConnected) {
+            // Initialiser la carte après vérification du serveur
+            await initializeMap();
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation:', error);
+    }
+    
+    // Ajouter debounce sur les champs d'adresse pour éviter trop d'appels API
+    const pickupInput = document.getElementById('pickup');
+    const destinationInput = document.getElementById('destination');
+    
+    // Fonction de suggestion d'adresse (optionnel, pour autocomplétion)
+    const suggestAddress = debounce(async (input, fieldName) => {
+        const value = input.value.trim();
+        if (value.length < 3) return; // Attendre au moins 3 caractères
+        
+        // Ici on pourrait implémenter une autocomplétion
+        // Pour l'instant, on ne fait rien, mais la structure est prête
+        console.log(`Recherche d'adresse pour ${fieldName}:`, value);
+    }, 500); // Attendre 500ms après la dernière frappe
+    
+    // Ajouter les event listeners avec debounce
+    if (pickupInput) {
+        pickupInput.addEventListener('input', (e) => suggestAddress(e.target, 'pickup'));
+    }
+    if (destinationInput) {
+        destinationInput.addEventListener('input', (e) => suggestAddress(e.target, 'destination'));
+    }
+});
+
+// Fonction pour initialiser la carte (appelée après vérification du serveur)
+async function initializeMap() {
+    try {
+        // Récupérer le token Mapbox via l'API backend
+        const response = await fetch(`${API_URL}/api/mapbox/token`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.token) {
+                mapboxgl.accessToken = data.token;
+            }
+        }
+    } catch (error) {
+        console.warn('⚠️ Impossible de récupérer le token Mapbox, la carte peut ne pas fonctionner:', error);
+    }
+    
+    // Initialiser la carte même si le token n'est pas disponible (mode limité)
     map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/streets-v12',
@@ -40,10 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Ajouter les contrôles de navigation
     map.addControl(new mapboxgl.NavigationControl());
-
-    // Tester la connexion au serveur backend
-    testServerConnection();
-});
+}
 
 // ========================================
 // GESTION DE LA CONNEXION AU BACKEND
@@ -77,6 +139,10 @@ async function envoyerReservation(reservationData) {
         const result = await response.json();
         
         if (!response.ok) {
+            // Afficher les erreurs de validation si disponibles
+            if (result.errors && Array.isArray(result.errors)) {
+                throw new Error(result.errors.join(', '));
+            }
             throw new Error(result.message || 'Erreur lors de l\'envoi');
         }
         
@@ -93,7 +159,7 @@ async function envoyerReservation(reservationData) {
 // ========================================
 
 // Fonction pour utiliser la géolocalisation
-function useMyLocation() {
+async function useMyLocation() {
     if (!navigator.geolocation) {
         showError("La géolocalisation n'est pas supportée par votre navigateur");
         return;
@@ -106,28 +172,35 @@ function useMyLocation() {
             const lon = position.coords.longitude;
             
             try {
-                // Utiliser l'API de géocodage inverse Mapbox
+                // Utiliser le proxy backend pour le géocodage inverse
                 const response = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${MAPBOX_TOKEN}`
+                    `${API_URL}/api/mapbox/reverse-geocode?lon=${lon}&lat=${lat}`
                 );
+                
+                if (!response.ok) {
+                    throw new Error('Erreur lors du géocodage');
+                }
+                
                 const data = await response.json();
                 
                 if (data.features && data.features.length > 0) {
                     const address = data.features[0].place_name;
                     document.getElementById('pickup').value = address;
                     
-                    // Centrer la carte sur la position
-                    map.flyTo({ center: [lon, lat], zoom: 13 });
-                    
-                    // Ajouter un marqueur
-                    addMarker([lon, lat], '📍 Départ', 'pickup');
+                    // Centrer la carte sur la position si elle est initialisée
+                    if (map) {
+                        map.flyTo({ center: [lon, lat], zoom: 13 });
+                        addMarker([lon, lat], '📍 Départ', 'pickup');
+                    }
                     
                     showLoading(false);
                     showError("✅ Position actuelle détectée!", false);
+                } else {
+                    throw new Error('Aucune adresse trouvée');
                 }
             } catch (error) {
                 showLoading(false);
-                showError("Erreur lors de la récupération de l'adresse");
+                showError("Erreur lors de la récupération de l'adresse: " + error.message);
             }
         },
         function(error) {
@@ -207,33 +280,53 @@ async function calculatePrice() {
     }
 }
 
-// Fonction de géocodage avec Mapbox
+// Fonction de géocodage avec Mapbox (via proxy backend)
 async function geocodeAddress(address) {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_TOKEN}&limit=1`;
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.features && data.features.length > 0) {
-        const coords = data.features[0].center;
-        return { lon: coords[0], lat: coords[1] };
+    try {
+        const url = `${API_URL}/api/mapbox/geocode?query=${encodeURIComponent(address)}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error('Erreur lors du géocodage');
+        }
+        
+        const data = await response.json();
+        
+        if (data.features && data.features.length > 0) {
+            const coords = data.features[0].center;
+            return { lon: coords[0], lat: coords[1] };
+        }
+        return null;
+    } catch (error) {
+        console.error('Erreur géocodage:', error);
+        return null;
     }
-    return null;
 }
 
-// Obtenir l'itinéraire avec Mapbox Directions API
+// Obtenir l'itinéraire avec Mapbox Directions API (via proxy backend)
 async function getRoute(start, end) {
-    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start.lon},${start.lat};${end.lon},${end.lat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.routes && data.routes.length > 0) {
-        return {
-            distance: data.routes[0].distance,
-            duration: data.routes[0].duration,
-            geometry: data.routes[0].geometry
-        };
+    try {
+        const url = `${API_URL}/api/mapbox/directions?start=${start.lon},${start.lat}&end=${end.lon},${end.lat}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error('Erreur lors du calcul de l\'itinéraire');
+        }
+        
+        const data = await response.json();
+        
+        if (data.routes && data.routes.length > 0) {
+            return {
+                distance: data.routes[0].distance,
+                duration: data.routes[0].duration,
+                geometry: data.routes[0].geometry
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error('Erreur calcul itinéraire:', error);
+        return null;
     }
-    return null;
 }
 
 // ========================================

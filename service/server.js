@@ -1,9 +1,8 @@
 // server.js
-// Installation: npm install express @sendgrid/mail cors body-parser dotenv
+// Installation: npm install express @sendgrid/mail cors dotenv
 
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const sgMail = require('@sendgrid/mail');
 require('dotenv').config();
 
@@ -12,48 +11,167 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Configuration SendGrid
-sgMail.setApiKey(process.env.SENDGRID_PASS);
+if (!process.env.SENDGRID_PASS) {
+  console.warn('⚠️ SENDGRID_PASS non configuré. Les emails ne pourront pas être envoyés.');
+} else {
+  sgMail.setApiKey(process.env.SENDGRID_PASS);
+}
 
-// Vérification de la configuration
-(async () => {
-  try {
-    await sgMail.send({
-      to: process.env.VTC_EMAIL,
-      from: process.env.EMAIL_USER,
-      subject: "🔧 Test configuration SendGrid",
-      text: "Test de configuration du serveur email SendGrid."
-    });
-    console.log('✅ Serveur email prêt via SendGrid');
-  } catch (err) {
-    console.error('❌ Erreur de configuration email:', err.message || err);
+// Vérification de la configuration (optionnel, contrôlé par variable d'environnement)
+if (process.env.TEST_EMAIL_ON_STARTUP === 'true') {
+  (async () => {
+    try {
+      await sgMail.send({
+        to: process.env.VTC_EMAIL,
+        from: process.env.EMAIL_USER,
+        subject: "🔧 Test configuration SendGrid",
+        text: "Test de configuration du serveur email SendGrid."
+      });
+      console.log('✅ Serveur email prêt via SendGrid');
+    } catch (err) {
+      console.error('❌ Erreur de configuration email:', err.message || err);
+    }
+  })();
+} else {
+  console.log('📧 Configuration SendGrid chargée (test désactivé)');
+}
+
+// Fonction de validation des données
+function validateReservation(data) {
+  const errors = [];
+
+  // Validation du nom
+  if (!data.name || typeof data.name !== 'string' || data.name.trim().length < 2) {
+    errors.push('Le nom doit contenir au moins 2 caractères');
   }
-})();
+
+  // Validation du téléphone (format français)
+  const phoneRegex = /^(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]*\d{2}){4}$/;
+  if (!data.phone || !phoneRegex.test(data.phone.replace(/\s/g, ''))) {
+    errors.push('Le numéro de téléphone doit être au format français valide');
+  }
+
+  // Validation des adresses
+  if (!data.pickup || typeof data.pickup !== 'string' || data.pickup.trim().length < 5) {
+    errors.push('L\'adresse de départ est requise et doit contenir au moins 5 caractères');
+  }
+
+  if (!data.destination || typeof data.destination !== 'string' || data.destination.trim().length < 5) {
+    errors.push('L\'adresse de destination est requise et doit contenir au moins 5 caractères');
+  }
+
+  // Validation de la date
+  if (!data.date) {
+    errors.push('La date est requise');
+  } else {
+    const reservationDate = new Date(data.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (reservationDate < today) {
+      errors.push('La date de réservation ne peut pas être dans le passé');
+    }
+  }
+
+  // Validation de l'heure
+  if (!data.time) {
+    errors.push('L\'heure est requise');
+  }
+
+  // Validation de l'email si fourni
+  if (data.email && data.email.trim()) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(data.email)) {
+      errors.push('L\'adresse email n\'est pas valide');
+    }
+  }
+
+  // Validation du type de service
+  const validServiceTypes = ['standard', 'premium', 'business'];
+  if (!data.serviceType || !validServiceTypes.includes(data.serviceType)) {
+    errors.push('Le type de service doit être standard, premium ou business');
+  }
+
+  // Validation du nombre de passagers
+  const passengers = parseInt(data.passengers);
+  if (!data.passengers || isNaN(passengers) || passengers < 1 || passengers > 8) {
+    errors.push('Le nombre de passagers doit être entre 1 et 8');
+  }
+
+  // Sanitization basique (protection XSS)
+  const sanitize = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.trim().replace(/[<>]/g, '');
+  };
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    sanitized: {
+      name: sanitize(data.name),
+      phone: sanitize(data.phone),
+      email: data.email ? sanitize(data.email) : '',
+      pickup: sanitize(data.pickup),
+      destination: sanitize(data.destination),
+      date: data.date,
+      time: data.time,
+      serviceType: data.serviceType,
+      passengers: passengers.toString(),
+      notes: data.notes ? sanitize(data.notes) : '',
+      distance: data.distance || '',
+      duration: data.duration || '',
+      price: data.price || ''
+    }
+  };
+}
 
 // Route pour recevoir les réservations
 app.post('/api/reservations', async (req, res) => {
   try {
-    const reservation = req.body;
+    const validation = validateReservation(req.body);
 
-    if (!reservation.name || !reservation.phone || !reservation.pickup || !reservation.destination) {
-      return res.status(400).json({ success: false, message: 'Données manquantes' });
+    if (!validation.isValid) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Données invalides',
+        errors: validation.errors
+      });
     }
 
+    const reservation = validation.sanitized;
+
     // Envoi de l'email au VTC
-    await envoyerNotificationVTC(reservation);
+    try {
+      await envoyerNotificationVTC(reservation);
+    } catch (emailError) {
+      console.error('❌ Erreur lors de l\'envoi de l\'email au VTC:', emailError);
+      // On continue même si l'email échoue
+    }
 
     // Envoi de l'email de confirmation au client si email fourni
     if (reservation.email) {
-      await envoyerConfirmationClient(reservation);
+      try {
+        await envoyerConfirmationClient(reservation);
+      } catch (emailError) {
+        console.error('❌ Erreur lors de l\'envoi de l\'email au client:', emailError);
+        // On continue même si l'email échoue
+      }
     }
 
-    res.json({ success: true, message: 'Réservation enregistrée avec succès', reservationId: Date.now() });
+    res.json({ 
+      success: true, 
+      message: 'Réservation enregistrée avec succès', 
+      reservationId: Date.now() 
+    });
   } catch (error) {
     console.error('❌ Erreur lors de la réservation:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur. Veuillez réessayer.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur. Veuillez réessayer.' 
+    });
   }
 });
 
@@ -208,6 +326,104 @@ function getServiceName(serviceType) {
   };
   return services[serviceType] || serviceType;
 }
+
+// ========================================
+// PROXY MAPBOX (Sécurisation du token)
+// ========================================
+
+// Endpoint pour le géocodage
+app.get('/api/mapbox/geocode', async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Paramètre "query" requis' });
+    }
+
+    if (!process.env.MAPBOX_TOKEN) {
+      return res.status(500).json({ error: 'Token Mapbox non configuré' });
+    }
+
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${process.env.MAPBOX_TOKEN}&limit=1`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json(data);
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Erreur géocodage:', error);
+    res.status(500).json({ error: 'Erreur lors du géocodage' });
+  }
+});
+
+// Endpoint pour le géocodage inverse
+app.get('/api/mapbox/reverse-geocode', async (req, res) => {
+  try {
+    const { lon, lat } = req.query;
+    
+    if (!lon || !lat) {
+      return res.status(400).json({ error: 'Paramètres "lon" et "lat" requis' });
+    }
+
+    if (!process.env.MAPBOX_TOKEN) {
+      return res.status(500).json({ error: 'Token Mapbox non configuré' });
+    }
+
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${process.env.MAPBOX_TOKEN}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json(data);
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Erreur géocodage inverse:', error);
+    res.status(500).json({ error: 'Erreur lors du géocodage inverse' });
+  }
+});
+
+// Endpoint pour les directions
+app.get('/api/mapbox/directions', async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    
+    if (!start || !end) {
+      return res.status(400).json({ error: 'Paramètres "start" et "end" requis (format: lon,lat)' });
+    }
+
+    if (!process.env.MAPBOX_TOKEN) {
+      return res.status(500).json({ error: 'Token Mapbox non configuré' });
+    }
+
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start};${end}?geometries=geojson&access_token=${process.env.MAPBOX_TOKEN}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json(data);
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Erreur directions:', error);
+    res.status(500).json({ error: 'Erreur lors du calcul de l\'itinéraire' });
+  }
+});
+
+// Endpoint pour récupérer le token Mapbox (public, limité à la visualisation)
+app.get('/api/mapbox/token', (req, res) => {
+  if (!process.env.MAPBOX_TOKEN) {
+    return res.status(500).json({ error: 'Token Mapbox non configuré' });
+  }
+  // Retourner le token pour l'initialisation de la carte côté client
+  // Note: Ce token devrait être un token public limité (scoped) en production
+  res.json({ token: process.env.MAPBOX_TOKEN });
+});
 
 // Route de test
 app.get('/api/health', (req, res) => {
